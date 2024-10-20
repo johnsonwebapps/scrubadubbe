@@ -5,39 +5,77 @@
              [ring.middleware.json :as middleware]
              [ring.util.response :as response]
              [ring.adapter.jetty :as jetty]
+            [scrubadubbe.login :as login]
             [ring.middleware.defaults :as defaults])
    (:import java.sql.DriverManager))
   
-  (def db-spec
-    {:classname "com.mysql.cj.jdbc.Driver"
-     :subprotocol "mysql"
-     :subname (str "//" (System/getenv "DB_HOST") ":" (System/getenv "DB_PORT") "/" (System/getenv "DB_NAME"))
-     :user (System/getenv "DB_USER")
-     :password (System/getenv "DB_PASS")
-     })
-  
-   
+
   
   ; Example query function
-  (defn get-items []
-    (jdbc/query db-spec ["SELECT * FROM users WHERE username = 'joset@scrubadub.com'"]))
+  (defn signin [username password]
+    (let [rslt (jdbc/query db-spec ["SELECT * FROM users WHERE username = ?" username])
+          pw (get (first rslt) :password)
+          userid (get (first rslt) :id)
+          roletslt (jdbc/query db-spec ["SELECT role_id FROM roles_users WHERE user_id = ?" userid])
+          role (get (first roletslt) :role_id)
+          ] 
+      (login/signin username password pw role)) 
+    )
+
+    ;(jdbc/query db-spec ["SELECT role_id FROM roles_users WHERE user_id = ?" 160])
   
-  (get-items)
+ ; (signin "joset@scrubadub.com" "ScrubaDub172")
+    
+  (defn get-partners []
+    (jdbc/query db-spec ["SELECT email, slug, name FROM dealers"])
+    )
   
-  (defroutes app-routes
-    (GET "/items" [] (response/response (get-items)))
-    (route/not-found "Not Found"))
-  
-  (defn wrap-json-response [handler]
-    (fn [request]
-      (-> (handler request)
-          (middleware/wrap-json-body)
-          (middleware/wrap-json-response))))
-  
-  (def app
-    (-> app-routes
-        wrap-json-response
-        (ring.middleware.defaults/wrap-defaults ring.middleware.defaults/site-defaults)))
-  
-  (defn -main [& args]
-    (jetty/run-jetty app {:port (Integer/parseInt (or (System/getenv "PORT") "3000"))}))
+    
+  (defn update-pw [userid pw]
+    (jdbc/execute! db-spec ["UPDATE users SET password = ? WHERE username = ?", pw, userid]))
+
+ ; (update-pw "joset@scrubadub.com" "bcrypt+sha512$adb56a6bcaed67f417a595e59db2442a$12$83a5e20f98baf0972d7979bd692ec0f68fae908abad3a464")
+
+
+ (defroutes app-routes
+   (GET "/login/:username/:password" [username password]
+     (let [rslt (signin username password)]
+       (if (= rslt "Login Failed")
+         (-> (response/response {:error "Unauthorized"})
+             (response/status 401)
+             (response/header "Access-Control-Allow-Origin" "*"))
+         (-> (response/response {:success true
+                                 :token rslt})
+             (response/status 200)
+             (response/header "Access-Control-Allow-Origin" "*")))))
+ 
+   (GET "/partners/:token" [token]
+     (let [tokenvalid (login/validate-token token)]
+       (if (and (get tokenvalid :valid) (= 2 (get tokenvalid :role)))
+         (-> (response/response {:partners (get-partners)})
+             (response/status 200)
+             (response/header "Access-Control-Allow-Origin" "*")
+             (response/header "Content-Type" "application/json; charset=utf-8") 
+             (response/header "Access-Control-Allow-Methods" "GET, OPTIONS"))
+         (-> (response/response {:error "Invalid Token"})
+             (response/status 401)
+             (response/header "Access-Control-Allow-Origin" "*")))))
+   (route/not-found "Not Found"))
+ 
+ ; Notice that wrap-json-response and wrap-json-body have been moved onto app-routes.
+ (def app
+   (-> app-routes
+       (middleware/wrap-json-body {:keywords? true
+                                    :bigdecimals? false
+                                    :strict true
+                                    :handler (fn [request ex]
+                                               {:status 400
+                                                :headers {"Content-Type" "application/json"}
+                                                :body {:message "Invalid JSON"}})})
+       (middleware/wrap-json-response {:pretty true
+                                      :escape-slash false
+                                      :escape-non-ascii true})
+       (defaults/wrap-defaults defaults/site-defaults)))
+ 
+ (defn -main [& args]
+   (jetty/run-jetty app {:port (Integer/parseInt (or (System/getenv "PORT") "3000"))}))

@@ -6,8 +6,12 @@
                               [org.clojure/java.jdbc "0.7.12"]
                               [mysql/mysql-connector-java "8.0.28"]
                               [compojure "1.6.2"] ; For routing
+                              [buddy/buddy "2.0.0"]
+                              [buddy/buddy-core "1.12.0-430"]
+                              [buddy/buddy-hashers "2.0.167"]
+                              [buddy/buddy-sign "3.5.351"]
                               [ring/ring-json "0.5.1"] ; For JSON handling
-                              [ring/ring-defaults "0.3.2"]
+                              [ring/ring-defaults "0.3.2"] 
                               [ring/ring-jetty-adapter "1.8.2"]] ; Common middleware
                :main ^:skip-aot scrubadubbe.core
                :target-path "target/%s"
