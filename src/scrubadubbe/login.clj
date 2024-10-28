@@ -39,5 +39,5 @@
 (validate-token "eyJhbGciOiJIUzI1NiJ9.eyJ1c2VyaWQiOiJqb3NldEBzY3J1YmFkdWIuY29tIiwicm9sZSI6Mn0.urNAvQZXZcO2ULWwKJahMdppq_n3mYr-x6wsd7FbD0I")
 
 ;(def data (jwt/sign {:userid 77} "secret"))
-
+(create-token "cjflash" 2)
 ;(jwt/unsign data "secret")

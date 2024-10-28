@@ -22,12 +22,12 @@
       (login/signin username password pw role)) 
     )
 
-    ;(jdbc/query db-spec ["SELECT role_id FROM roles_users WHERE user_id = ?" 160])
-  
- ; (signin "joset@scrubadub.com" "ScrubaDub172")
+  ;;   (jdbc/query db-spec ["SELECT role_id FROM roles_users WHERE user_id = ?" 160])
+  ;; (jdbc/query db-spec ["SELECT * FROM users WHERE username = 'joset@scrubadub.com'"])
+  ;; (signin "joset@scrubadub.com" "ScrubaDub172")
     
   (defn get-partners []
-    (jdbc/query db-spec ["SELECT email, slug, name FROM dealers"])
+    (jdbc/query db-spec ["SELECT * FROM dealers"])
     )
   
     
@@ -56,7 +56,8 @@
              (response/status 200)
              (response/header "Access-Control-Allow-Origin" "*")
              (response/header "Content-Type" "application/json; charset=utf-8") 
-             (response/header "Access-Control-Allow-Methods" "GET, OPTIONS"))
+             (response/header "Access-Control-Allow-Methods" "POST, GET, PUT, DELETE, OPTIONS")
+             (response/header "Access-Control-Allow-Headers" "Content-Type, Authorization"))
          (-> (response/response {:error "Invalid Token"})
              (response/status 401)
              (response/header "Access-Control-Allow-Origin" "*")))))
@@ -78,4 +79,4 @@
        (defaults/wrap-defaults defaults/site-defaults)))
  
  (defn -main [& args]
-   (jetty/run-jetty app {:port (Integer/parseInt (or (System/getenv "PORT") "3000"))}))
+   (jetty/run-jetty app {:port (Integer/parseInt (or (System/getenv "PORT") "80"))}))
