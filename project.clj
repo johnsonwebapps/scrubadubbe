@@ -12,7 +12,10 @@
                               [buddy/buddy-sign "3.5.351"]
                               [ring/ring-json "0.5.1"] ; For JSON handling
                               [ring/ring-defaults "0.3.2"] 
-                              [ring/ring-jetty-adapter "1.8.2"]] ; Common middleware
+                              [ring/ring-jetty-adapter "1.8.2"] ; Common middleware
+                              [com.velisco/clj-ftp "1.2.0"]
+                              [clj-time "0.15.2"]
+                              ] 
                :main ^:skip-aot scrubadubbe.core
                :target-path "target/%s"
                :profiles {:uberjar {:aot :all
