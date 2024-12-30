@@ -12,11 +12,13 @@
             [ring.middleware.session :refer [wrap-session]]
             [ring.middleware.anti-forgery :as antif]
             [miner.ftp :as ftp]
-            [clj-time.format :as f]
+            ;[clj-time.format :as f]
+            [clojure.data.csv :as csv]
             ;[clj-ssh.ssh.sftp :as sftp]
             )
   (:import (java.nio.file Files StandardCopyOption)
-           (java.sql DriverManager)))
+           (java.sql DriverManager)
+           (java.io StringWriter)))
   
   ;; (def db-spec
   ;;   {:classname "com.mysql.cj.jdbc.Driver"
@@ -60,19 +62,33 @@
     )
 
 (defn get-coupon-batch [dealer_id coupon_id]
-  (jdbc/query db-spec ["WITH RankedCodes AS (SELECT *,
-                              ROW_NUMBER () OVER (PARTITION BY batch ORDER BY id) AS rn,
-                              COUNT (*) OVER (PARTITION BY batch) AS total_count,
-                              SUM (CASE WHEN used != 1 THEN 1 ELSE 0 END) OVER (PARTITION BY batch) AS available_amount
-                              FROM `codes `WHERE dealer_id = ? AND coupon_id = ?)
-  SELECT *
-  FROM RankedCodes
-  WHERE rn = 1;" dealer_id coupon_id]
-  ))
+  (jdbc/query db-spec ["WITH RankedCodes AS (
+                          SELECT codes.id, codes.dealer_id, codes.coupon_id, codes.batch, codes.human, codes.barcode, codes.used,
+                                 ROW_NUMBER() OVER (PARTITION BY batch ORDER BY id) AS rn,
+                                 COUNT(*) OVER (PARTITION BY batch) AS total_count,
+                                 SUM(CASE WHEN used != 1 THEN 1 ELSE 0 END) OVER (PARTITION BY batch) AS available_amount
+                          FROM codes
+                          WHERE dealer_id = ? AND coupon_id = ?)
+                        SELECT *
+                        FROM RankedCodes
+                        WHERE rn = 1;"
+                       dealer_id coupon_id]))
   
 (defn get-coupon [dealer_id]
   (jdbc/query db-spec ["SELECT coupons.id, coupons.name, coupons.description, coupons.fields, coupons.expiration_date, coupons.expiration_days, coupons.rate, coupons.customer_redeemable, coupons.filename, coupons.active,  COUNT(redemptions.coupon_id) as coupon_count, (SELECT COUNT(*) FROM `codes` WHERE dealer_id = ? AND coupon_id = coupons.id AND used = 0) as code_balance, (SELECT COUNT(*) FROM `redemptions` WHERE dealer_id = ? AND coupon_id = coupons.id AND sitewatch_saleid IS NOT NULL) as redeemed_count FROM dealers LEFT JOIN redemptions ON (dealers.id = redemptions.dealer_id) LEFT JOIN coupons ON (coupons.id = redemptions.coupon_id) WHERE dealers.id = ? GROUP BY coupons.id;"dealer_id dealer_id dealer_id]))
 
+(defn get-couponcodes [dealer_id coupon_id batch]
+  (jdbc/query db-spec ["SELECT codes.barcode, codes.human, codes.used FROM codes WHERE dealer_id = ? AND coupon_id = ? AND batch = ?;" dealer_id, coupon_id batch]))
+
+;(get-couponcodes 1 1 1)
+
+(defn coupons-to-csv [coupons]
+  (let [writer (StringWriter.)]
+    (csv/write-csv writer [["Barcode" "Human" "Used"]]
+                   :separator \,)
+    (csv/write-csv writer (map (juxt :barcode :human :used) coupons)
+                   :separator \,)
+    (.toString writer)))
 
 (defn get-partners []
   (jdbc/query db-spec ["
@@ -170,6 +186,45 @@
              (response/status 401)
              (response/header "Access-Control-Allow-Origin" "*")))) 
      )
+   
+   (GET "/couponbatch/:dealerid/:couponid" [dealerid couponid :as request]
+     (let [auth-header (get-in request [:headers "authorization"])
+           token       (when auth-header (second (clojure.string/split auth-header #" ")))
+           tokenvalid  (when token (login/validate-token token))]
+       (if (and tokenvalid (= 2 (get tokenvalid :role)))
+   
+   
+         (let [couponbatch-info (get-coupon-batch dealerid couponid)
+               ]
+           (-> (response/response {:couponbatch couponbatch-info})
+               (response/status 200)
+               (response/header "Access-Control-Allow-Origin" "*")
+               (response/header "Content-Type" "application/json; charset=utf-8")
+               (response/header "Access-Control-Allow-Methods" "POST, GET, PUT, DELETE, OPTIONS")
+               (response/header "Access-Control-Allow-Headers" "Content-Type, Authorization,  x-csrf-token")))
+         (-> (response/response {:error (str "Invalid Token")})
+             (response/status 401)
+             (response/header "Access-Control-Allow-Origin" "*")))))
+   
+    (GET "/download-codes/:dealerid/:couponid/:batch" [dealerid couponid batch :as request]
+     (let [auth-header (get-in request [:headers "authorization"])
+           token       (when auth-header (second (clojure.string/split auth-header #" ")))
+           tokenvalid  (when token (login/validate-token token))]
+       (if (and tokenvalid (= 2 (get tokenvalid :role)))
+   
+   
+         (let [coupons (get-couponcodes dealerid couponid batch)
+                csv-data (coupons-to-csv coupons)]
+           (-> (response/response csv-data)
+               (response/status 200)
+               (response/header "Access-Control-Allow-Origin" "*")
+               (response/header "Content-Type" "text/csv")
+               (response/header "Content-Disposition" "attachment; filename=codes.csv")
+               (response/header "Access-Control-Allow-Methods" "POST, GET, PUT, DELETE, OPTIONS")
+               (response/header "Access-Control-Allow-Headers" "Content-Type, Authorization,  x-csrf-token")))
+         (-> (response/response {:error (str "Invalid Token")})
+             (response/status 401)
+             (response/header "Access-Control-Allow-Origin" "*")))))
 
 
    (GET "/login/:username/:password" [username password :as request]
