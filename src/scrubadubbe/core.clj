@@ -20,7 +20,29 @@
            (java.sql DriverManager)
            (java.io StringWriter)))
   
- ;removed database configuration
+ ;; (def db-spec
+  ;;   {:classname "com.mysql.cj.jdbc.Driver"
+  ;;    :subprotocol "mysql"
+  ;;    :subname (str "//" (System/getenv "DB_HOST") ":" (System/getenv "DB_PORT") "/" (System/getenv "DB_NAME"))
+  ;;    :user (System/getenv "DB_USER")
+  ;;    :password (System/getenv "DB_PASS")
+  ;;    })
+  
+    (def db-spec
+     {:classname "com.mysql.cj.jdbc.Driver"
+      :subprotocol "mysql"
+      :subname (str "//" "208.109.67.238" ":" "3306" "/" "db_partner_2024");(str "//" (System/getenv "DB_HOST") ":" (System/getenv "DB_PORT") "/" (System/getenv "DB_NAME"))
+      :user "dba_partner_2020";(System/getenv "DB_USER")
+      :password "ScrubaDub172";(System/getenv "DB_PASS")
+      })
+    
+    ;; (def db-spec
+    ;;   {:classname "com.mysql.cj.jdbc.Driver"
+    ;;    :subprotocol "mysql"
+    ;;    :subname (str "//" "localhost" ":" "8889" "/" "db_partner_2020");(str "//" (System/getenv "DB_HOST") ":" (System/getenv "DB_PORT") "/" (System/getenv "DB_NAME"))
+    ;;    :user "dev";(System/getenv "DB_USER")
+    ;;    :password "admin";(System/getenv "DB_PASS")
+    ;;    })
     
     (import [java.time.format DateTimeFormatter])
     
