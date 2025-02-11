@@ -12,6 +12,7 @@
             [ring.middleware.session :refer [wrap-session]]
             [ring.middleware.anti-forgery :as antif]
             [miner.ftp :as ftp]
+            [clojure.java.io :as io]
             ;[clj-time.format :as f]
             [clojure.data.csv :as csv]
             ;[clj-ssh.ssh.sftp :as sftp]
@@ -116,6 +117,11 @@
   (defn update-pw [userid pw]
     (jdbc/execute! db-spec ["UPDATE users SET password = ? WHERE username = ?", pw, userid]))
 
+
+ (defn addcoupon [partner_id coupon_id newbatch_id human barcode]
+    (jdbc/execute! db-spec ["INSERT into codes (dealer_id, coupon_id, batch, human, barcode, used) 
+            VALUES (?, ?, ?, ?, ?, ?) ", partner_id, coupon_id, newbatch_id, human, barcode, "0"]))
+
  ; (update-pw "joset@scrubadub.com" "bcrypt+sha512$adb56a6bcaed67f417a595e59db2442a$12$83a5e20f98baf0972d7979bd692ec0f68fae908abad3a464")
 
 ;SSH SFTP Testing
@@ -146,6 +152,34 @@
      ; )
     ))
 
+  (defn importcodes [request]
+  (let [{:keys [filename tempfile]} (get-in request [:params :file-upload]) 
+    batch_id (Long/parseLong (get-in request [:params :batch_id] "0"))
+    coupon_id (get-in request [:params :coupon_id])
+    partner_id (get-in request [:params :dealer_id])
+    newbatch_id (+ 1 batch_id)
+    ]
+    
+    (with-open [reader (io/reader tempfile)]
+      (doseq [line (line-seq reader)]
+        (let [human  (last (clojure.string/split line #"\t")) ;(str "'"(last (clojure.string/split line #"\t") ) "'")
+              barcode (first (clojure.string/split line #"\t")) ;(str "'" (first (clojure.string/split line #"\t")) "'")
+              ] 
+              (println (str "********************* dealer_id: " partner_id " coupon_id: " coupon_id " batch: " newbatch_id " human: " human " barcode: " barcode))
+              (println (str "INSERT into codes (dealer_id, coupon_id, batch, human, barcode, used) 
+            VALUES (?, ?, ?, ?, ?, ?) ", partner_id, coupon_id, newbatch_id, human, barcode, "0"))
+          (addcoupon  partner_id, coupon_id, newbatch_id, human, barcode)
+           
+                      )))
+                       (-> (response/response {:success true}) ;; Return csrf-token in the response body
+          (-> (response/status 200)
+          (response/header "Content-Type" "application/json; charset=utf-8")
+          (response/header "Access-Control-Allow-Origin" "*")
+          (response/header "Access-Control-Allow-Methods" "POST, GET, PUT, DELETE, OPTIONS")
+          (response/header "Access-Control-Allow-Headers" "Content-Type, Authorization, x-csrf-token"))
+    )))
+
+
 
 
  (defroutes app-routes
@@ -164,6 +198,23 @@
           (response/header "Access-Control-Allow-Headers" "Content-Type, Authorization, x-csrf-token"))))
    
     (POST "/upload" [] (wrap-multipart-params upload-file)) 
+
+    (POST "/importcodes" []
+    ;; (let [
+    ;;   ;; auth-header (get-in request [:headers "authorization"])
+    ;;   ;;     token       (when auth-header (second (clojure.string/split auth-header #" ")))
+    ;;   ;;     tokenvalid  (when token (login/validate-token token))
+    ;;       batch_id          (get params :batch_id)
+    ;;       coupon_id        (get params :coupon_id)
+    ;;       partner_id       (get params :partner_id)
+    ;;       file     (get params :file-upload) 
+    ;; ]
+    
+    
+    
+    
+    
+    (wrap-multipart-params importcodes) )
    
    (GET "/partners/coupon/id/:couponid" [couponid :as request]
      (let [auth-header (get-in request [:headers "authorization"])
